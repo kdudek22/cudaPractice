@@ -1,60 +1,82 @@
 #include <cuda_runtime.h>
 #include <stdio.h>
+#define TPB 64
 
-__global__ void addMatrix() {
+__global__ void addMatrix(float *a, float *b, float *c, int matrixSize) {
+	int index = blockDim.x * blockIdx.x + threadIdx.x;
 
-	printf("%d-%d-%d, ", blockDim.x, blockIdx.x, threadIdx.x);
+	//printf("%d - %d, ", index, matrixSize);
+	
+	if (index < matrixSize) {
+		c[index] = a[index] + b[index];
+		printf("%d %d\n", index, a[index]);
+	}
 }
 
+void printMatrix(float** matrix, int nCols, int nRows) {
+	for (int i = 0; i < nRows; i++) {
+		for (int j = 0; j < nCols; j++) {
+			printf("%f ", matrix[i][j]);
+		}
+		printf("\n");
+	}
+}
 
 int main() {
-	
 	int nCols = 3;
 	int nRows = 3;
 
+	float** matrixA = new float*[nRows];
+	matrixA[0] = new float[nRows * nCols];
 
-	// We create a array of pointers to 
-	float ** x = new float* [nRows];
+	float** matrixB = new float* [nRows];
+	matrixB[0] = new float[nRows * nCols];
 
-	// each value in the array is a float[]
-	for (int i = 0; i < nRows; i++) {
-		x[i] = new float[nCols];
+	float** matrixC = new float* [nRows];
+	matrixC[0] = new float[nRows * nCols];
+
+	// cd alokacji pamieci
+	for (int i = 1; i < nRows; i++) {
+		matrixA[i] = matrixA[0] + i * nCols;
+		matrixB[i] = matrixB[0] + i * nCols;
+		matrixC[i] = matrixC[0] + i * nCols;
 	}
 
-
-	// this fills the array with values
-	for (int i=0; i < nRows; i++) {
+	// wypelnienie macierzy wartosciami
+	for (int i = 0;i < nRows;i++) {
 		for (int j = 0; j < nCols; j++) {
-			x[i][j] = float(i*10) + float(j);
+			matrixA[i][j] = float(i*nCols + j);
+			matrixB[i][j] = float(i*nCols + j);
 		}
 	}
 
-	// Tu specyfikujesz ile chcesz odpalic bloków i ile watków w bloku
-	// przykladowo jezeli odpalimy <<<2,10>>>, to:
-	// blockDim.x = 10, ilosc watkow w bloku
-	// blockIdx.x - indeksy blokow, my odpalilismy 2 wiec od {0,1}
-	// threadIdx.x - id danego watku w bloku, my w kazdym bloku uruchomilismy 10 watkow, wiec wartosci {0..9}
-	addMatrix <<<3, 100 >> >();
+	float *d_a, * d_b, * d_c;
+	
+	cudaMalloc(&d_a, nCols * nRows * sizeof(float));
+	cudaMalloc(&d_b, nCols * nRows * sizeof(float));
+	cudaMalloc(&d_c, nCols * nRows * sizeof(float));
 
+	for (int i = 0; i < nRows; i++) {
+		cudaMemcpy(&d_a[i * nCols], matrixA[i], sizeof(float) * nCols, cudaMemcpyHostToDevice);
+		cudaMemcpy(&d_b[i * nCols], matrixB[i], sizeof(float) * nCols, cudaMemcpyHostToDevice);
+	}
+
+	int blockDim = (nCols * nRows - 1) / TPB + 1;
+	printf("Block dimensions: %d\n", blockDim);
+
+	addMatrix<<<blockDim, TPB >> > (d_a, d_b, d_c, nCols * nRows);
 
 	cudaDeviceSynchronize();
 
+	cudaMemcpy(matrixC, d_c, nCols * nRows * sizeof(float), cudaMemcpyDeviceToHost);
 
-	// print the array
-	for (int i=0; i < nRows; i++) {
-		for (int j=0; j < nCols; j++) {
-			printf("%f, ", x[i][j]);
-		}
-		printf("\n");
-		
-	}
 
-	// free up the allocated memory
-	for (int i = 0; i < nRows; i++) {
-		delete[] x[i];
-	}
+	printMatrix(matrixA, nCols, nRows);
+	printf("========\n");
+	printMatrix(matrixB, nCols, nRows);
+	printf("========\n");
+	printMatrix(matrixC, nCols, nRows);
 
-	delete[]x;
 
 	return 0;
 }
