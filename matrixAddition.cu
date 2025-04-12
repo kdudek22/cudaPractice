@@ -9,44 +9,33 @@ __global__ void addMatrix(float *a, float *b, float *c, int matrixSize) {
 	
 	if (index < matrixSize) {
 		c[index] = a[index] + b[index];
-		printf("%d %d\n", index, a[index]);
 	}
 }
 
-void printMatrix(float** matrix, int nCols, int nRows) {
+void printMatrix(float* matrix, int nCols, int nRows) {
 	for (int i = 0; i < nRows; i++) {
 		for (int j = 0; j < nCols; j++) {
-			printf("%f ", matrix[i][j]);
+			printf("%f ", matrix[i*nCols + j]);
 		}
 		printf("\n");
 	}
 }
 
 int main() {
-	int nCols = 3;
+	int nCols = 15;
 	int nRows = 3;
 
-	float** matrixA = new float*[nRows];
-	matrixA[0] = new float[nRows * nCols];
+	float* matrixA = new float[nRows*nCols];
 
-	float** matrixB = new float* [nRows];
-	matrixB[0] = new float[nRows * nCols];
+	float* matrixB = new float[nRows*nCols];
 
-	float** matrixC = new float* [nRows];
-	matrixC[0] = new float[nRows * nCols];
-
-	// cd alokacji pamieci
-	for (int i = 1; i < nRows; i++) {
-		matrixA[i] = matrixA[0] + i * nCols;
-		matrixB[i] = matrixB[0] + i * nCols;
-		matrixC[i] = matrixC[0] + i * nCols;
-	}
-
-	// wypelnienie macierzy wartosciami
-	for (int i = 0;i < nRows;i++) {
+	float* matrixC = new float[nRows*nCols];
+	
+	// wypelnienie wartosciami
+	for (int i=0; i < nRows; i++) {
 		for (int j = 0; j < nCols; j++) {
-			matrixA[i][j] = float(i*nCols + j);
-			matrixB[i][j] = float(i*nCols + j);
+			matrixA[i * nCols + j] = float(i + j);
+			matrixB[i * nCols + j] = float(i + j);
 		}
 	}
 
@@ -56,10 +45,8 @@ int main() {
 	cudaMalloc(&d_b, nCols * nRows * sizeof(float));
 	cudaMalloc(&d_c, nCols * nRows * sizeof(float));
 
-	for (int i = 0; i < nRows; i++) {
-		cudaMemcpy(&d_a[i * nCols], matrixA[i], sizeof(float) * nCols, cudaMemcpyHostToDevice);
-		cudaMemcpy(&d_b[i * nCols], matrixB[i], sizeof(float) * nCols, cudaMemcpyHostToDevice);
-	}
+	cudaMemcpy(d_a, matrixA, nCols * nRows * sizeof(float), cudaMemcpyHostToDevice);
+	cudaMemcpy(d_b, matrixB, nCols * nRows * sizeof(float), cudaMemcpyHostToDevice);
 
 	int blockDim = (nCols * nRows - 1) / TPB + 1;
 	printf("Block dimensions: %d\n", blockDim);
